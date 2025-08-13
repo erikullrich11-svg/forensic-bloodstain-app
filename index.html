@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análisis Forense - Patrones de Manchas de Sangre</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#7f1d1d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Análisis Forense">
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <style>
+        .lucide {
+            width: 1.25rem;
+            height: 1.25rem;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+        
+        // Componente de íconos simplificado
+        const Icon = ({ name, className = "w-5 h-5" }) => {
+            const icons = {
+                camera: <svg className={`${className} lucide`} viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg>,
+                upload: <svg className={`${className} lucide`} viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+                book: <svg className={`${className} lucide`} viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
+                eye: <svg className={`${className} lucide`} viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>,
+                zap: <svg className={`${className} lucide`} viewBox="0 0 24 24"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2"/></svg>,
+                rotate: <svg className={`${className} lucide`} viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>,
+                info: <svg className={`${className} lucide`} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>,
+                chevron: <svg className={`${className} lucide`} viewBox="0 0 24 24"><polyline points="9,18 15,12 9,6"/></svg>,
+                play: <svg className={`${className} lucide`} viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21 5,3"/></svg>,
+                pause: <svg className={`${className} lucide`} viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            };
+            return icons[name] || <div className={className}></div>;
+        };
+
+        const BloodstainAnalysisApp = () => {
+            const [activeMode, setActiveMode] = useState('theory');
+            const [selectedPattern, setSelectedPattern] = useState(null);
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [analysisResult, setAnalysisResult] = useState(null);
+            const [cameraActive, setCameraActive] = useState(false);
+            const videoRef = useRef(null);
+            const canvasRef = useRef(null);
+
+            const bloodPatterns = [
+                {
+                    id: 'passive',
+                    name: 'Goteo Pasivo',
+                    description: 'Gotas que caen por gravedad desde una fuente estática',
+                    characteristics: ['Forma circular', 'Bordes lisos', 'Diámetro 4-6mm', 'Ángulo de impacto 90°'],
+                    velocity: 'Baja velocidad (0-5 m/s)',
+                    mechanism: 'Gravedad',
+                    examples: ['Herida sangrante', 'Goteo desde objeto'],
+                    shape: 'circle'
+                },
+                {
+                    id: 'projected',
+                    name: 'Proyección',
+                    description: 'Sangre expulsada bajo presión desde el cuerpo',
+                    characteristics: ['Forma alargada', 'Cola direccional', 'Tamaño variable', 'Patrón lineal'],
+                    velocity: 'Media velocidad (5-25 m/s)',
+                    mechanism: 'Presión arterial/venosa',
+                    examples: ['Herida arterial', 'Expectoración sanguinolenta'],
+                    shape: 'ellipse'
+                },
+                {
+                    id: 'impact',
+                    name: 'Salpicadura de Impacto',
+                    description: 'Resultado de fuerza aplicada a fuente de sangre líquida',
+                    characteristics: ['Múltiples gotas pequeñas', 'Patrón radial', 'Dirección desde punto central'],
+                    velocity: 'Media a alta velocidad (5-100+ m/s)',
+                    mechanism: 'Fuerza externa',
+                    examples: ['Golpe con objeto', 'Disparo'],
+                    shape: 'spray'
+                },
+                {
+                    id: 'castoff',
+                    name: 'Sacudida (Cast-off)',
+                    description: 'Sangre desprendida de objeto en movimiento',
+                    characteristics: ['Línea de gotas', 'Tamaño similar', 'Dirección del movimiento'],
+                    velocity: 'Variable',
+                    mechanism: 'Inercia y fuerza centrífuga',
+                    examples: ['Arma blanca en movimiento', 'Objeto ensangrentado'],
+                    shape: 'line'
+                },
+                {
+                    id: 'pooling',
+                    name: 'Acumulación',
+                    description: 'Sangre que se acumula por gravedad en superficie',
+                    characteristics: ['Forma irregular', 'Bordes definidos', 'Coágulos visibles'],
+                    velocity: 'Sin velocidad',
+                    mechanism: 'Gravedad y volumen',
+                    examples: ['Herida grave', 'Sangrado prolongado'],
+                    shape: 'pool'
+                }
+            ];
+
+            const startCamera = async () => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' }
+                    });
+                    if (videoRef.current) {
+                        videoRef.current.srcObject = stream;
+                        setCameraActive(true);
+                    }
+                } catch (err) {
+                    console.error('Error accessing camera:', err);
+                    alert('No se pudo acceder a la cámara. Asegúrate de dar permisos.');
+                }
+            };
+
+            const stopCamera = () => {
+                if (videoRef.current && videoRef.current.srcObject) {
+                    const tracks = videoRef.current.srcObject.getTracks();
+                    tracks.forEach(track => track.stop());
+                    videoRef.current.srcObject = null;
+                    setCameraActive(false);
+                }
+            };
+
+            const analyzeImage = () => {
+                setIsAnalyzing(true);
+                
+                setTimeout(() => {
+                    const randomPattern = bloodPatterns[Math.floor(Math.random() * bloodPatterns.length)];
+                    const confidence = (Math.random() * 30 + 70).toFixed(1);
+                    
+                    setAnalysisResult({
+                        pattern: randomPattern,
+                        confidence: confidence,
+                        measurements: {
+                            diameter: (Math.random() * 10 + 2).toFixed(1) + 'mm',
+                            angle: Math.floor(Math.random() * 90 + 10) + '°',
+                            velocity: randomPattern.velocity
+                        }
+                    });
+                    setIsAnalyzing(false);
+                }, 2000);
+            };
+
+            const PatternCard = ({ pattern, isSelected, onClick }) => (
+                <div 
+                    className={`bg-white rounded-lg shadow-md p-4 cursor-pointer transition-all duration-200 ${
+                        isSelected ? 'ring-2 ring-red-500 shadow-lg' : 'hover:shadow-lg'
+                    }`}
+                    onClick={onClick}
+                >
+                    <div className="flex items-start justify-between mb-3">
+                        <h3 className="font-semibold text-gray-800">{pattern.name}</h3>
+                        <div className={`w-8 h-8 rounded ${
+                            pattern.shape === 'circle' ? 'bg-red-500 rounded-full' :
+                            pattern.shape === 'ellipse' ? 'bg-red-500 rounded-full transform scale-x-150' :
+                            pattern.shape === 'spray' ? 'bg-red-500 rounded-sm' :
+                            pattern.shape === 'line' ? 'bg-red-500 rounded-full transform scale-x-300 scale-y-50' :
+                            'bg-red-500 rounded-lg'
+                        }`}></div>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-3">{pattern.description}</p>
+                    <div className="space-y-2">
+                        <div className="text-xs text-gray-500">
+                            <strong>Velocidad:</strong> {pattern.velocity}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                            <strong>Mecanismo:</strong> {pattern.mechanism}
+                        </div>
+                    </div>
+                    <Icon name="chevron" className="w-4 h-4 text-gray-400 mt-2" />
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-red-50 to-gray-100">
+                    <div className="bg-red-900 text-white p-4 shadow-lg">
+                        <h1 className="text-xl font-bold text-center">Análisis Forense</h1>
+                        <p className="text-red-200 text-sm text-center mt-1">Patrones de Manchas de Sangre</p>
+                    </div>
+
+                    <div className="bg-white shadow-sm">
+                        <div className="flex">
+                            <button
+                                className={`flex-1 py-3 px-4 text-center font-medium ${
+                                    activeMode === 'theory' ? 'bg-red-100 text-red-700 border-b-2 border-red-500' : 'text-gray-600'
+                                }`}
+                                onClick={() => setActiveMode('theory')}
+                            >
+                                <Icon name="book" className="w-5 h-5 mx-auto mb-1" />
+                                Teoría
+                            </button>
+                            <button
+                                className={`flex-1 py-3 px-4 text-center font-medium ${
+                                    activeMode === 'camera' ? 'bg-red-100 text-red-700 border-b-2 border-red-500' : 'text-gray-600'
+                                }`}
+                                onClick={() => setActiveMode('camera')}
+                            >
+                                <Icon name="camera" className="w-5 h-5 mx-auto mb-1" />
+                                Análisis
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="p-4">
+                        {activeMode === 'theory' && (
+                            <div className="space-y-4">
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <h2 className="font-semibold text-blue-800 flex items-center mb-2">
+                                        <Icon name="info" className="w-5 h-5 mr-2" />
+                                        Fundamentos Teóricos
+                                    </h2>
+                                    <p className="text-blue-700 text-sm">
+                                        El análisis de patrones de manchas de sangre es una disciplina científica que estudia la 
+                                        forma, distribución y características de la sangre para reconstruir eventos forenses.
+                                    </p>
+                                </div>
+
+                                <h2 className="text-lg font-semibold text-gray-800 mt-6 mb-4">
+                                    Tipos de Patrones
+                                </h2>
+
+                                <div className="grid gap-4">
+                                    {bloodPatterns.map((pattern) => (
+                                        <PatternCard
+                                            key={pattern.id}
+                                            pattern={pattern}
+                                            isSelected={selectedPattern?.id === pattern.id}
+                                            onClick={() => setSelectedPattern(pattern)}
+                                        />
+                                    ))}
+                                </div>
+
+                                {selectedPattern && (
+                                    <div className="bg-white rounded-lg shadow-lg p-4 border border-red-200">
+                                        <h3 className="font-semibold text-red-800 mb-3">{selectedPattern.name}</h3>
+                                        
+                                        <div className="space-y-3">
+                                            <div>
+                                                <h4 className="font-medium text-gray-700">Características:</h4>
+                                                <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
+                                                    {selectedPattern.characteristics.map((char, index) => (
+                                                        <li key={index}>{char}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                            
+                                            <div>
+                                                <h4 className="font-medium text-gray-700">Ejemplos:</h4>
+                                                <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
+                                                    {selectedPattern.examples.map((example, index) => (
+                                                        <li key={index}>{example}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeMode === 'camera' && (
+                            <div className="space-y-4">
+                                <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                                    <div className="bg-gray-50 p-4 border-b">
+                                        <h2 className="font-semibold text-gray-800">Análisis en Tiempo Real</h2>
+                                        <p className="text-sm text-gray-600 mt-1">
+                                            Activa la cámara para analizar patrones de manchas de sangre
+                                        </p>
+                                    </div>
+
+                                    <div className="relative">
+                                        {!cameraActive ? (
+                                            <div className="h-64 bg-gray-100 flex items-center justify-center">
+                                                <button
+                                                    onClick={startCamera}
+                                                    className="bg-red-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 hover:bg-red-700 transition-colors"
+                                                >
+                                                    <Icon name="camera" className="w-5 h-5" />
+                                                    <span>Activar Cámara</span>
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="relative">
+                                                <video
+                                                    ref={videoRef}
+                                                    autoPlay
+                                                    playsInline
+                                                    className="w-full h-64 object-cover"
+                                                />
+                                                <div className="absolute inset-0 border-2 border-red-500 border-dashed opacity-50 pointer-events-none"></div>
+                                            </div>
+                                        )}
+                                        <canvas ref={canvasRef} className="hidden" />
+                                    </div>
+
+                                    {cameraActive && (
+                                        <div className="p-4 space-y-3">
+                                            <div className="flex space-x-3">
+                                                <button
+                                                    onClick={analyzeImage}
+                                                    disabled={isAnalyzing}
+                                                    className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700 transition-colors disabled:opacity-50"
+                                                >
+                                                    {isAnalyzing ? (
+                                                        <>
+                                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                                            <span>Analizando...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Icon name="eye" className="w-4 h-4" />
+                                                            <span>Analizar</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    onClick={stopCamera}
+                                                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                                                >
+                                                    <Icon name="pause" className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {analysisResult && (
+                                    <div className="bg-white rounded-lg shadow-lg p-4 border border-green-200">
+                                        <h3 className="font-semibold text-green-800 mb-3 flex items-center">
+                                            <Icon name="zap" className="w-5 h-5 mr-2" />
+                                            Resultado del Análisis
+                                        </h3>
+                                        
+                                        <div className="space-y-3">
+                                            <div className="bg-green-50 p-3 rounded-lg">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="font-medium text-green-800">
+                                                        {analysisResult.pattern.name}
+                                                    </span>
+                                                    <span className="text-sm text-green-600">
+                                                        Confianza: {analysisResult.confidence}%
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-green-700">
+                                                    {analysisResult.pattern.description}
+                                                </p>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-gray-50 p-3 rounded-lg">
+                                                    <h4 className="font-medium text-gray-700 text-sm">Mediciones</h4>
+                                                    <div className="text-xs text-gray-600 mt-1 space-y-1">
+                                                        <div>Diámetro: {analysisResult.measurements.diameter}</div>
+                                                        <div>Ángulo: {analysisResult.measurements.angle}</div>
+                                                        <div>Velocidad: {analysisResult.measurements.velocity}</div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="bg-red-50 p-3 rounded-lg">
+                                                    <h4 className="font-medium text-red-700 text-sm">Interpretación</h4>
+                                                    <p className="text-xs text-red-600 mt-1">
+                                                        {analysisResult.pattern.mechanism}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                    <h3 className="font-medium text-yellow-800 mb-2">⚠️ Nota Importante</h3>
+                                    <p className="text-sm text-yellow-700">
+                                        Este prototipo es para fines educativos. En casos reales, el análisis debe ser 
+                                        realizado por expertos forenses certificados usando equipos especializados.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<BloodstainAnalysisApp />, document.getElementById('root'));
+    </script>
+
+    <!-- Service Worker para PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then((registration) => console.log('SW registered'))
+                .catch((error) => console.log('SW registration failed'));
+        }
+    </script>
+</body>
+</html>
