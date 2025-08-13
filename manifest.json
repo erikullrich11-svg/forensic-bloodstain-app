@@ -1,0 +1,28 @@
+{
+  "name": "Análisis Forense - Patrones de Manchas de Sangre",
+  "short_name": "ForenseApp",
+  "description": "App educativa para análisis de patrones de manchas de sangre en criminalística",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#7f1d1d",
+  "theme_color": "#7f1d1d",
+  "orientation": "portrait-primary",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192x192/7f1d1d/ffffff?text=FA",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://via.placeholder.com/512x512/7f1d1d/ffffff?text=FA",
+      "sizes": "512x512", 
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "medical", "forensics"],
+  "lang": "es",
+  "dir": "ltr"
+}
